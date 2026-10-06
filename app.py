@@ -1,11 +1,18 @@
 """
 ============================================================================
  LOGISIGHT ANALYTICS
- Last Mile Delivery Intelligence Dashboard
+ Last Mile Delivery Intelligence Dashboard  —  Premium SaaS Redesign (v2)
  ---------------------------------------------------------------------------
- A premium, production-ready Streamlit analytics dashboard for logistics
- managers to analyse last-mile delivery performance and identify
- operational bottlenecks.
+ A production-ready Streamlit analytics dashboard for logistics managers to
+ analyse last-mile delivery performance and surface operational bottlenecks.
+
+ Redesign highlights
+   • Premium gradient KPI metric cards (exact brand gradients)
+   • Every chart wrapped in a white "premium card" container
+   • Row-based dashboard layout (KPI row -> 5 chart rows -> AI panel)
+   • Glassmorphism sidebar with rounded filter containers
+   • AI Insights Panel with colourful BI cards
+   • Full-dataset processing (no sampling)
 
  Author : LogiSight Analytics
  Stack  : Streamlit + Pandas + Plotly + Scikit-learn + Statsmodels
@@ -16,6 +23,7 @@ from __future__ import annotations
 
 import io
 import os
+from contextlib import contextmanager
 from datetime import datetime
 
 import numpy as np
@@ -51,6 +59,25 @@ PRIMARY_SEQ = [PRIMARY_1, PRIMARY_2, PRIMARY_3]
 ACCENT_SEQ = [ACCENT_1, ACCENT_2, ACCENT_3]
 GRADIENT_SEQ = ["#0066FF", "#3B82F6", "#38BDF8", "#55E3FF", "#8271B7", "#FF55C5"]
 
+# ---- Exact KPI gradients (per redesign specification) ----------------------
+KPI_GRADIENTS = {
+    "deliveries": "linear-gradient(135deg,#2563EB,#3B82F6)",   # Card 1 · blue
+    "time":       "linear-gradient(135deg,#7C3AED,#A855F7)",   # Card 2 · purple
+    "late":       "linear-gradient(135deg,#F97316,#FB923C)",   # Card 3 · orange
+    "rating":     "linear-gradient(135deg,#10B981,#34D399)",   # Card 4 · green
+    "vehicle":    "linear-gradient(135deg,#EC4899,#F472B6)",   # Card 5 · pink
+    "area":       "linear-gradient(135deg,#F59E0B,#FBBF24)",   # Card 6 · amber
+}
+
+# ---- AI Insights Panel gradients -------------------------------------------
+AI_GRADIENTS = {
+    "vehicle": "linear-gradient(135deg,#2563EB,#3B82F6)",
+    "traffic": "linear-gradient(135deg,#F97316,#FB923C)",
+    "area":    "linear-gradient(135deg,#10B981,#34D399)",
+    "risk":    "linear-gradient(135deg,#EC4899,#F472B6)",
+    "summary": "linear-gradient(135deg,#7C3AED,#A855F7)",
+}
+
 TRAFFIC_COLORS = {
     "Low": "#38BDF8",
     "Medium": "#3B82F6",
@@ -66,8 +93,8 @@ AGE_GROUP_COLORS = {
 DATA_CANDIDATES = [
     "Last_mile_Delivery_Data.csv",
     "data/Last_mile_Delivery_Data.csv",
-    "data/sample_data.csv",
     "sample_data.csv",
+    "data/sample_data.csv",
 ]
 
 
@@ -81,7 +108,6 @@ def load_css(path: str = "assets/style.css") -> None:
         with open(path, "r", encoding="utf-8") as fh:
             css = fh.read()
     else:
-        # Fallback minimal styling if the asset is missing
         css = """
         .stApp { background:#F5F8FC; font-family:'Inter',sans-serif; }
         """
@@ -101,7 +127,7 @@ def load_data(path: str) -> pd.DataFrame:
 
 
 def resolve_dataset() -> tuple[pd.DataFrame, str]:
-    """Find and load the first available dataset file."""
+    """Find and load the first available dataset file (full data preferred)."""
     for candidate in DATA_CANDIDATES:
         if os.path.exists(candidate):
             return load_data(candidate), candidate
@@ -250,8 +276,8 @@ def style_fig(fig: go.Figure, height: int = 420, showlegend: bool = True) -> go.
         font=dict(family="Inter, sans-serif", size=12.5, color=TEXT_MAIN),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(255,255,255,0)",
-        margin=dict(l=10, r=10, t=48, b=10),
-        title=dict(font=dict(size=16, color=TEXT_MAIN, family="Inter, sans-serif"), x=0.01),
+        margin=dict(l=10, r=10, t=46, b=10),
+        title=dict(font=dict(size=15.5, color=TEXT_MAIN, family="Inter, sans-serif"), x=0.01),
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -316,23 +342,44 @@ def render_navbar(date_label: str) -> None:
     )
 
 
-def kpi_card(icon: str, value: str, label: str, sub: str, grad: str, delay: float = 0.0) -> str:
-    """Return HTML for a single gradient KPI card."""
+def kpi_card(icon: str, value: str, label: str, sub: str, gradient: str, delay: float = 0.0) -> str:
+    """Return HTML for a single premium gradient KPI metric card."""
     return f"""
-        <div class="kpi-card {grad}" style="animation-delay:{delay}s;">
-            <div class="kpi-icon">{icon}</div>
+        <div class="kpi-card" style="background:{gradient};animation-delay:{delay}s;">
+            <div class="kpi-top">
+                <div class="kpi-icon">{icon}</div>
+                <div class="kpi-title">{label}</div>
+            </div>
             <div class="kpi-value">{value}</div>
-            <div class="kpi-label">{label}</div>
             <div class="kpi-sub">{sub}</div>
         </div>
     """
 
 
-def section_header(icon: str, title: str, desc: str) -> None:
+@contextmanager
+def chart_card(key: str, icon: str, title: str, desc: str):
+    """
+    Context manager that renders a premium white chart container.
+    The container receives the Streamlit class `st-key-chart_<key>` which is
+    styled by the stylesheet (25px radius, soft shadow, padding).
+    """
+    with st.container(key=f"chart_{key}"):
+        st.markdown(
+            f"""
+            <div class="section-title"><span class="st-ico">{icon}</span>{title}</div>
+            <div class="section-desc">{desc}</div>
+            """,
+            unsafe_allow_html=True,
+        )
+        yield
+
+
+def section_header(icon: str, title: str, desc: str = "") -> None:
+    desc_html = f'<div class="section-desc">{desc}</div>' if desc else ""
     st.markdown(
         f"""
         <div class="section-title"><span class="st-ico">{icon}</span>{title}</div>
-        <div class="section-desc">{desc}</div>
+        {desc_html}
         """,
         unsafe_allow_html=True,
     )
@@ -359,6 +406,18 @@ def insight_card(icon: str, text: str, tag: str, variant: str = "") -> str:
                 <div class="insight-text">{text}</div>
                 <div class="insight-tag">{tag}</div>
             </div>
+        </div>
+    """
+
+
+def ai_panel_card(icon: str, label: str, value: str, desc: str, gradient: str, delay: float = 0.0) -> str:
+    """Return HTML for a colourful AI Insights Panel card."""
+    return f"""
+        <div class="ai-panel-card" style="background:{gradient};animation-delay:{delay}s;">
+            <div class="ai-ico">{icon}</div>
+            <div class="ai-label">{label}</div>
+            <div class="ai-value">{value}</div>
+            <div class="ai-desc">{desc}</div>
         </div>
     """
 
@@ -492,6 +551,127 @@ def build_insights(df: pd.DataFrame) -> list[dict]:
         )
 
     return insights
+
+
+def compute_delay_risk(df: pd.DataFrame) -> float:
+    """
+    Predict the probability of a late delivery under the highest-risk
+    operating segment (traffic x weather). Falls back to the overall late rate.
+    """
+    if df.empty:
+        return 0.0
+    base = df["Late_Delivery"].mean() * 100
+    try:
+        combo = (
+            df.groupby(["Traffic", "Weather"], observed=True)["Late_Delivery"]
+            .agg(["mean", "count"])
+            .reset_index()
+        )
+        combo = combo[combo["count"] >= max(20, int(0.002 * len(df)))]
+        if not combo.empty:
+            return float(combo["mean"].max() * 100)
+    except Exception:
+        pass
+    return float(base)
+
+
+def build_ai_panel(df: pd.DataFrame) -> list[dict]:
+    """Build the 5 colourful AI Insights Panel cards."""
+    cards: list[dict] = []
+
+    veh = agg_mean(df, "Vehicle")
+    if len(veh):
+        best = veh.iloc[0]
+        cards.append(
+            dict(
+                key="vehicle", icon="🏍️", label="Best Performing Vehicle",
+                value=best["Vehicle"].title(),
+                desc=f"Fastest fleet at {best['Avg_Delivery_Time']:.0f} min average "
+                     f"across {int(best['Deliveries']):,} trips.",
+            )
+        )
+
+    traf = agg_mean(df, "Traffic")
+    if len(traf):
+        worst = traf.iloc[-1]
+        cards.append(
+            dict(
+                key="traffic", icon="🚦", label="Worst Traffic Condition",
+                value=str(worst["Traffic"]),
+                desc=f"Adds the most delay at {worst['Avg_Delivery_Time']:.0f} min "
+                     f"average per delivery.",
+            )
+        )
+
+    area = agg_mean(df, "Area")
+    if len(area):
+        fast = area.iloc[0]
+        cards.append(
+            dict(
+                key="area", icon="📍", label="Fastest Area",
+                value=str(fast["Area"]),
+                desc=f"Quickest zone at {fast['Avg_Delivery_Time']:.0f} min average.",
+            )
+        )
+
+    risk = compute_delay_risk(df)
+    cards.append(
+        dict(
+            key="risk", icon="⚠️", label="Delay Risk Prediction",
+            value=f"{risk:.0f}%",
+            desc="Predicted late-delivery probability in the highest-risk "
+                 "traffic + weather segment.",
+        )
+    )
+
+    late_pct = df["Late_Delivery"].mean() * 100
+    cards.append(
+        dict(
+            key="summary", icon="🧠", label="Delivery Performance Summary",
+            value=f"{late_pct:.1f}% Late",
+            desc=f"{len(df):,} deliveries analysed · avg {df['Delivery_Time'].mean():.0f} min "
+                 f"· {df['Agent_Rating'].mean():.2f}★ rating.",
+        )
+    )
+    return cards
+
+
+def build_agent_scatter(df: pd.DataFrame) -> go.Figure:
+    """Rating vs Delivery Time scatter (Scattergl) with an OLS trendline.
+    Uses the FULL dataset via WebGL rendering for smooth performance."""
+    fig = go.Figure()
+    for grp, color in AGE_GROUP_COLORS.items():
+        sub = df[df["Age_Group"] == grp]
+        if sub.empty:
+            continue
+        fig.add_trace(
+            go.Scattergl(
+                x=sub["Agent_Rating"],
+                y=sub["Delivery_Time"],
+                mode="markers",
+                name=grp,
+                marker=dict(color=color, size=7, opacity=0.40, line=dict(width=0)),
+                hovertemplate="Rating %{x:.1f}<br>Time %{y:.0f} min"
+                f"<extra>{grp}</extra>",
+            )
+        )
+    # Manual OLS trendline (numpy) — avoids statsmodels overhead on full data
+    x = df["Agent_Rating"].to_numpy(dtype=float)
+    y = df["Delivery_Time"].to_numpy(dtype=float)
+    if len(x) > 2 and np.ptp(x) > 0:
+        m, b = np.polyfit(x, y, 1)
+        xr = np.linspace(x.min(), x.max(), 100)
+        fig.add_trace(
+            go.Scattergl(
+                x=xr,
+                y=m * xr + b,
+                mode="lines",
+                name="OLS Trend",
+                line=dict(color="#0F172A", width=3, dash="dash"),
+                hoverinfo="skip",
+            )
+        )
+    return fig
 
 
 # ============================================================================
@@ -692,7 +872,7 @@ def main() -> None:
         df_all = clean_data(raw)
 
     # ------------------------------------------------------------------
-    #  SIDEBAR FILTERS
+    #  SIDEBAR FILTERS  (glassmorphism rounded containers)
     # ------------------------------------------------------------------
     with st.sidebar:
         st.markdown(
@@ -707,42 +887,50 @@ def main() -> None:
         st.markdown("### 🎛️ Filters")
         st.caption("All charts update dynamically.")
 
-        st.markdown('<div class="sidebar-section-label">Environment</div>', unsafe_allow_html=True)
-        weather_sel = st.multiselect(
-            "Weather", sorted(df_all["Weather"].dropna().unique()),
-            default=sorted(df_all["Weather"].dropna().unique()),
-        )
-        traffic_sel = st.multiselect(
-            "Traffic", sorted(df_all["Traffic"].dropna().unique()),
-            default=sorted(df_all["Traffic"].dropna().unique()),
-        )
+        with st.container(key="filter_env"):
+            st.markdown('<div class="sidebar-section-label">🌦️ Environment</div>',
+                        unsafe_allow_html=True)
+            weather_sel = st.multiselect(
+                "Weather", sorted(df_all["Weather"].dropna().unique()),
+                default=sorted(df_all["Weather"].dropna().unique()),
+            )
+            traffic_sel = st.multiselect(
+                "Traffic", sorted(df_all["Traffic"].dropna().unique()),
+                default=sorted(df_all["Traffic"].dropna().unique()),
+            )
 
-        st.markdown('<div class="sidebar-section-label">Fleet & Geography</div>', unsafe_allow_html=True)
-        vehicle_sel = st.multiselect(
-            "Vehicle Type", sorted(df_all["Vehicle"].dropna().unique()),
-            default=sorted(df_all["Vehicle"].dropna().unique()),
-        )
-        area_sel = st.multiselect(
-            "Area", sorted(df_all["Area"].dropna().unique()),
-            default=sorted(df_all["Area"].dropna().unique()),
-        )
+        with st.container(key="filter_fleet"):
+            st.markdown('<div class="sidebar-section-label">🚗 Fleet & Geography</div>',
+                        unsafe_allow_html=True)
+            vehicle_sel = st.multiselect(
+                "Vehicle Type", sorted(df_all["Vehicle"].dropna().unique()),
+                default=sorted(df_all["Vehicle"].dropna().unique()),
+            )
+            area_sel = st.multiselect(
+                "Area", sorted(df_all["Area"].dropna().unique()),
+                default=sorted(df_all["Area"].dropna().unique()),
+            )
 
-        st.markdown('<div class="sidebar-section-label">Product & People</div>', unsafe_allow_html=True)
-        category_sel = st.multiselect(
-            "Category", sorted(df_all["Category"].dropna().unique()),
-            default=sorted(df_all["Category"].dropna().unique()),
-        )
-        age_sel = st.multiselect(
-            "Agent Age Group", ["Under 25", "25-40", "40+"],
-            default=["Under 25", "25-40", "40+"],
-        )
+        with st.container(key="filter_people"):
+            st.markdown('<div class="sidebar-section-label">📦 Product & People</div>',
+                        unsafe_allow_html=True)
+            category_sel = st.multiselect(
+                "Category", sorted(df_all["Category"].dropna().unique()),
+                default=sorted(df_all["Category"].dropna().unique()),
+            )
+            age_sel = st.multiselect(
+                "Agent Age Group", ["Under 25", "25-40", "40+"],
+                default=["Under 25", "25-40", "40+"],
+            )
 
-        st.markdown('<div class="sidebar-section-label">Time Period</div>', unsafe_allow_html=True)
-        min_d = df_all["Order_Date"].min().date()
-        max_d = df_all["Order_Date"].max().date()
-        date_range = st.date_input(
-            "Date Range", value=(min_d, max_d), min_value=min_d, max_value=max_d
-        )
+        with st.container(key="filter_time"):
+            st.markdown('<div class="sidebar-section-label">📅 Time Period</div>',
+                        unsafe_allow_html=True)
+            min_d = df_all["Order_Date"].min().date()
+            max_d = df_all["Order_Date"].max().date()
+            date_range = st.date_input(
+                "Date Range", value=(min_d, max_d), min_value=min_d, max_value=max_d
+            )
 
         st.markdown("---")
         st.caption(f"📁 Source: `{source_path}`")
@@ -769,7 +957,7 @@ def main() -> None:
     df = df_all[mask].copy()
 
     # ------------------------------------------------------------------
-    #  NAVBAR
+    #  NAVBAR + PAGE HEADER
     # ------------------------------------------------------------------
     date_label = f"{start_d:%d %b %Y} – {end_d:%d %b %Y}"
     render_navbar(date_label)
@@ -801,215 +989,271 @@ def main() -> None:
     best_area = area_rank.iloc[0]["Area"] if len(area_rank) else "—"
     best_area_time = area_rank.iloc[0]["Avg_Delivery_Time"] if len(area_rank) else 0
 
-    # ------------------------------------------------------------------
-    #  ROW 1 — KPI CARDS
-    # ------------------------------------------------------------------
+    # ==================================================================
+    #  ROW 1 — PREMIUM KPI CARDS
+    # ==================================================================
     k1, k2, k3, k4, k5, k6 = st.columns(6, gap="medium")
     with k1:
         st.markdown(kpi_card("📦", f"{total_deliveries:,}", "Total Deliveries",
-                             "Filtered order volume", "kpi-grad-1", 0.05), unsafe_allow_html=True)
+                             "Filtered order volume", KPI_GRADIENTS["deliveries"], 0.05),
+                    unsafe_allow_html=True)
     with k2:
-        st.markdown(kpi_card("⏱️", f"{avg_time:.1f}", "Avg Delivery Time (min)",
-                             "Mean across all routes", "kpi-grad-2", 0.10), unsafe_allow_html=True)
+        st.markdown(kpi_card("⏱️", f"{avg_time:.1f}", "Avg Delivery Time",
+                             "Minutes across all routes", KPI_GRADIENTS["time"], 0.10),
+                    unsafe_allow_html=True)
     with k3:
         st.markdown(kpi_card("⚠️", f"{late_pct:.1f}%", "Late Delivery %",
-                             "Above mean + 1σ threshold", "kpi-grad-3", 0.15), unsafe_allow_html=True)
+                             "Above mean + 1σ threshold", KPI_GRADIENTS["late"], 0.15),
+                    unsafe_allow_html=True)
     with k4:
         st.markdown(kpi_card("⭐", f"{avg_rating:.2f}", "Avg Agent Rating",
-                             "Out of 5.00 stars", "kpi-grad-4", 0.20), unsafe_allow_html=True)
+                             "Out of 5.00 stars", KPI_GRADIENTS["rating"], 0.20),
+                    unsafe_allow_html=True)
     with k5:
         st.markdown(kpi_card("🏍️", fastest_vehicle, "Fastest Vehicle",
-                             f"Avg {fastest_veh_time:.0f} min", "kpi-grad-5", 0.25), unsafe_allow_html=True)
+                             f"Avg {fastest_veh_time:.0f} min", KPI_GRADIENTS["vehicle"], 0.25),
+                    unsafe_allow_html=True)
     with k6:
         st.markdown(kpi_card("🏆", best_area, "Best Performing Area",
-                             f"Avg {best_area_time:.0f} min", "kpi-grad-6", 0.30), unsafe_allow_html=True)
+                             f"Avg {best_area_time:.0f} min", KPI_GRADIENTS["area"], 0.30),
+                    unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
 
-    # ------------------------------------------------------------------
+    # ==================================================================
     #  TABS — Dashboard / Insights / Performance / Operations
-    # ------------------------------------------------------------------
+    # ==================================================================
     tab_dash, tab_insights, tab_perf, tab_ops = st.tabs(
         ["📊 Dashboard", "💡 Insights", "📈 Performance", "⚙️ Operations"]
     )
 
     # ==================================================================
-    #  TAB 1 — MAIN DASHBOARD (5 REQUIRED SECTIONS)
+    #  TAB 1 — DASHBOARD  (ROW 2 → ROW 6)
     # ==================================================================
     with tab_dash:
-        # ---------------- SECTION 1 : Delay Analyzer -------------------
-        section_header("🌦️", "Section 1 · Delay Analyzer",
-                       "Average delivery time split by weather and traffic conditions.")
-        grp = (
-            df.groupby(["Weather", "Traffic"], observed=True)["Delivery_Time"]
-            .mean()
-            .reset_index()
-            .rename(columns={"Delivery_Time": "Avg_Delivery_Time"})
-        )
-        fig1 = px.bar(
-            grp, x="Weather", y="Avg_Delivery_Time", color="Traffic",
-            barmode="group", color_discrete_map=TRAFFIC_COLORS,
-            title="Delay Analysis by Weather and Traffic",
-            labels={"Avg_Delivery_Time": "Avg Delivery Time (min)"},
-        )
-        fig1.update_traces(marker_line_width=0, opacity=0.95)
-        style_fig(fig1, height=430)
-        st.plotly_chart(fig1, width='stretch')
 
-        traf_sorted = agg_mean(df, "Traffic")
-        wea_sorted = agg_mean(df, "Weather")
-        s1_bullets = []
-        if len(traf_sorted) >= 2:
-            s1_bullets.append(
-                f"<b>{traf_sorted.iloc[-1]['Traffic']}</b> traffic adds "
-                f"{traf_sorted.iloc[-1]['Avg_Delivery_Time'] - traf_sorted.iloc[0]['Avg_Delivery_Time']:.0f} min "
-                f"versus <b>{traf_sorted.iloc[0]['Traffic']}</b> traffic."
-            )
-        if len(wea_sorted) >= 1:
-            s1_bullets.append(
-                f"<b>{wea_sorted.iloc[-1]['Weather']}</b> is the most disruptive weather, "
-                f"averaging {wea_sorted.iloc[-1]['Avg_Delivery_Time']:.0f} min."
-            )
-        s1_bullets.append(
-            "Delay compounds when severe weather coincides with heavy traffic — "
-            "prioritise fleet re-routing during these windows."
-        )
-        insight_box("Auto-Generated Insights", s1_bullets)
+        # ---------------- ROW 2 : Delay Analyzer | Vehicle Comparison ----
+        r2c1, r2c2 = st.columns(2, gap="large")
+        with r2c1:
+            with chart_card("delay", "🌦️", "Delay Analyzer",
+                            "Average delivery time by weather & traffic condition."):
+                grp = (
+                    df.groupby(["Weather", "Traffic"], observed=True)["Delivery_Time"]
+                    .mean().reset_index()
+                    .rename(columns={"Delivery_Time": "Avg_Delivery_Time"})
+                )
+                fig1 = px.bar(
+                    grp, x="Weather", y="Avg_Delivery_Time", color="Traffic",
+                    barmode="group", color_discrete_map=TRAFFIC_COLORS,
+                    labels={"Avg_Delivery_Time": "Avg Delivery Time (min)", "Weather": ""},
+                )
+                fig1.update_traces(marker_line_width=0, opacity=0.95)
+                style_fig(fig1, height=330)
+                st.plotly_chart(fig1, width="stretch", key="pc_delay")
 
-        st.markdown("<br>", unsafe_allow_html=True)
+                traf_sorted = agg_mean(df, "Traffic")
+                wea_sorted = agg_mean(df, "Weather")
+                bullets = []
+                if len(traf_sorted) >= 2:
+                    bullets.append(
+                        f"<b>{traf_sorted.iloc[-1]['Traffic']}</b> traffic adds "
+                        f"{traf_sorted.iloc[-1]['Avg_Delivery_Time'] - traf_sorted.iloc[0]['Avg_Delivery_Time']:.0f} min "
+                        f"vs <b>{traf_sorted.iloc[0]['Traffic']}</b>."
+                    )
+                if len(wea_sorted) >= 1:
+                    bullets.append(
+                        f"<b>{wea_sorted.iloc[-1]['Weather']}</b> is the most disruptive weather "
+                        f"({wea_sorted.iloc[-1]['Avg_Delivery_Time']:.0f} min avg)."
+                    )
+                insight_box("Auto-Generated Insights", bullets)
 
-        # ---------------- SECTION 2 : Vehicle Comparison ---------------
-        section_header("🚗", "Section 2 · Vehicle Comparison",
-                       "Average delivery time by vehicle type — fastest highlighted.")
-        veh = agg_mean(df, "Vehicle")
-        colors = [
-            PRIMARY_1 if v == fastest_vehicle.lower() else PRIMARY_3
-            for v in veh["Vehicle"]
-        ]
-        fig2 = px.bar(
-            veh, x="Avg_Delivery_Time", y="Vehicle", orientation="h",
-            title="Vehicle Performance Comparison",
-            labels={"Avg_Delivery_Time": "Avg Delivery Time (min)", "Vehicle": ""},
-            color="Avg_Delivery_Time",
-            color_continuous_scale=[PRIMARY_3, PRIMARY_2, PRIMARY_1],
-        )
-        fig2.update_traces(marker_line_width=0)
-        fig2.update_layout(coloraxis_showscale=False)
-        style_fig(fig2, height=380, showlegend=False)
-        st.plotly_chart(fig2, width='stretch')
+        with r2c2:
+            with chart_card("vehicle", "🚗", "Vehicle Comparison",
+                            "Average delivery time by vehicle type — fastest highlighted."):
+                veh = agg_mean(df, "Vehicle")
+                fig2 = px.bar(
+                    veh, x="Avg_Delivery_Time", y="Vehicle", orientation="h",
+                    labels={"Avg_Delivery_Time": "Avg Delivery Time (min)", "Vehicle": ""},
+                    color="Avg_Delivery_Time",
+                    color_continuous_scale=[PRIMARY_3, PRIMARY_2, PRIMARY_1],
+                )
+                fig2.update_traces(marker_line_width=0)
+                fig2.update_layout(coloraxis_showscale=False)
+                style_fig(fig2, height=330, showlegend=False)
+                st.plotly_chart(fig2, width="stretch", key="pc_vehicle")
 
-        s2_bullets = []
-        if len(veh) >= 2:
-            fast, slow = veh.iloc[0], veh.iloc[-1]
-            pct = (slow["Avg_Delivery_Time"] - fast["Avg_Delivery_Time"]) / slow[
-                "Avg_Delivery_Time"
-            ] * 100
-            s2_bullets.append(
-                f"<b>{fast['Vehicle'].title()}</b> is the fastest fleet option at "
-                f"{fast['Avg_Delivery_Time']:.0f} min."
-            )
-            s2_bullets.append(
-                f"<b>{slow['Vehicle'].title()}</b> is {pct:.0f}% slower — "
-                f"consider reallocating high-priority orders."
-            )
-        insight_box("Fleet Insights", s2_bullets)
+                bullets = []
+                if len(veh) >= 2:
+                    fast, slow = veh.iloc[0], veh.iloc[-1]
+                    pct = (slow["Avg_Delivery_Time"] - fast["Avg_Delivery_Time"]) / slow[
+                        "Avg_Delivery_Time"] * 100
+                    bullets.append(
+                        f"<b>{fast['Vehicle'].title()}</b> is the fastest fleet at "
+                        f"{fast['Avg_Delivery_Time']:.0f} min."
+                    )
+                    bullets.append(
+                        f"<b>{slow['Vehicle'].title()}</b> is {pct:.0f}% slower — "
+                        f"reallocate high-priority orders."
+                    )
+                insight_box("Fleet Insights", bullets)
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-        # ---------------- SECTION 3 : Agent Performance ----------------
-        section_header("👤", "Section 3 · Agent Performance",
-                       "Rating vs delivery time by age group with OLS trendline.")
-        sample = df.sample(min(len(df), 3000), random_state=1) if len(df) > 3000 else df
-        try:
-            fig3 = px.scatter(
-                sample, x="Agent_Rating", y="Delivery_Time",
-                color="Age_Group", size="Delivery_Time",
-                color_discrete_map=AGE_GROUP_COLORS,
-                trendline="ols", trendline_scope="overall",
-                title="Agent Performance Analysis",
-                labels={"Agent_Rating": "Agent Rating", "Delivery_Time": "Delivery Time (min)"},
-                opacity=0.7, size_max=18,
-            )
-        except Exception:
-            fig3 = px.scatter(
-                sample, x="Agent_Rating", y="Delivery_Time",
-                color="Age_Group", size="Delivery_Time",
-                color_discrete_map=AGE_GROUP_COLORS,
-                title="Agent Performance Analysis",
-                labels={"Agent_Rating": "Agent Rating", "Delivery_Time": "Delivery Time (min)"},
-                opacity=0.7, size_max=18,
-            )
-        style_fig(fig3, height=460)
-        st.plotly_chart(fig3, width='stretch')
+        # ---------------- ROW 3 : Agent Performance | Area Heatmap -------
+        r3c1, r3c2 = st.columns(2, gap="large")
+        with r3c1:
+            with chart_card("agent", "👤", "Agent Performance",
+                            "Rating vs delivery time by age group with OLS trendline."):
+                fig3 = build_agent_scatter(df)
+                style_fig(fig3, height=360)
+                st.plotly_chart(fig3, width="stretch", key="pc_agent")
 
-        corr_r = df["Agent_Rating"].corr(df["Delivery_Time"])
-        s3_bullets = [
-            f"Rating–speed correlation is <b>r = {corr_r:.2f}</b> "
-            f"({'faster' if corr_r < 0 else 'slower'} deliveries with higher ratings).",
-            "Bubble size reflects delivery duration — larger bubbles mark longer trips.",
-        ]
-        insight_box("Agent Insights", s3_bullets)
+                corr_r = df["Agent_Rating"].corr(df["Delivery_Time"])
+                insight_box("Agent Insights", [
+                    f"Rating–speed correlation is <b>r = {corr_r:.2f}</b> "
+                    f"({'faster' if corr_r < 0 else 'slower'} deliveries with higher ratings).",
+                    f"<b>{len(df):,}</b> deliveries plotted in full (WebGL accelerated).",
+                ])
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        with r3c2:
+            with chart_card("heatmap", "🔥", "Area Heatmap",
+                            "Average delivery time across areas and weather conditions."):
+                heat = (
+                    df.groupby(["Area", "Weather"], observed=True)["Delivery_Time"]
+                    .mean().reset_index()
+                    .pivot(index="Area", columns="Weather", values="Delivery_Time")
+                )
+                fig4 = px.imshow(
+                    heat,
+                    color_continuous_scale=[PRIMARY_3, PRIMARY_2, ACCENT_3, ACCENT_1],
+                    aspect="auto", text_auto=".0f",
+                    labels=dict(color="Avg Time (min)"),
+                )
+                fig4.update_traces(textfont=dict(size=11, color="white"))
+                style_fig(fig4, height=360, showlegend=False)
+                st.plotly_chart(fig4, width="stretch", key="pc_heatmap")
 
-        # ---------------- SECTION 4 : Area Heatmap ---------------------
-        section_header("🔥", "Section 4 · Area Heatmap",
-                       "Average delivery time across areas and weather conditions.")
-        heat = (
-            df.groupby(["Area", "Weather"], observed=True)["Delivery_Time"]
-            .mean()
-            .reset_index()
-            .pivot(index="Area", columns="Weather", values="Delivery_Time")
-        )
-        fig4 = px.imshow(
-            heat,
-            color_continuous_scale=[PRIMARY_3, PRIMARY_2, ACCENT_3, ACCENT_1],
-            aspect="auto",
-            title="Area Delay Heatmap",
-            labels=dict(color="Avg Time (min)"),
-            text_auto=".0f",
-        )
-        fig4.update_traces(textfont=dict(size=11, color="white"))
-        style_fig(fig4, height=420, showlegend=False)
-        st.plotly_chart(fig4, width='stretch')
+                if not heat.empty:
+                    flat = heat.stack()
+                    worst_combo = flat.idxmax()
+                    insight_box("Geographic Insights", [
+                        f"Highest delay: <b>{worst_combo[0]}</b> under "
+                        f"<b>{worst_combo[1]}</b> at <b>{flat.max():.0f} min</b>.",
+                        "Darker cells mark bottlenecks needing intervention.",
+                    ])
 
-        if not heat.empty:
-            flat = heat.stack()
-            worst_combo = flat.idxmax()
-            s4_bullets = [
-                f"Highest delay: <b>{worst_combo[0]}</b> under <b>{worst_combo[1]}</b> "
-                f"conditions at <b>{flat.max():.0f} min</b>.",
-                "Darker cells indicate operational bottlenecks requiring intervention.",
-            ]
-        else:
-            s4_bullets = ["Insufficient data to compute the heatmap."]
-        insight_box("Geographic Insights", s4_bullets)
+        st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        # ---------------- ROW 4 : Category Visualizer | Monthly Trends ---
+        r4c1, r4c2 = st.columns(2, gap="large")
+        with r4c1:
+            with chart_card("category", "📦", "Category Visualizer",
+                            "Delivery time distribution across product categories."):
+                fig5 = px.box(
+                    df, x="Category", y="Delivery_Time", color="Category",
+                    labels={"Delivery_Time": "Delivery Time (min)", "Category": ""},
+                    color_discrete_sequence=px.colors.qualitative.Bold,
+                    points=False,
+                )
+                style_fig(fig5, height=360, showlegend=False)
+                fig5.update_xaxes(tickangle=-30)
+                st.plotly_chart(fig5, width="stretch", key="pc_category")
 
-        # ---------------- SECTION 5 : Category Visualizer --------------
-        section_header("📦", "Section 5 · Category Visualizer",
-                       "Delivery time distribution across product categories.")
-        fig5 = px.box(
-            df, x="Category", y="Delivery_Time", color="Category",
-            title="Delivery Time Distribution by Category",
-            labels={"Delivery_Time": "Delivery Time (min)", "Category": ""},
-            color_discrete_sequence=px.colors.qualitative.Bold,
-            points=False,
-        )
-        style_fig(fig5, height=460, showlegend=False)
-        fig5.update_xaxes(tickangle=-35)
-        st.plotly_chart(fig5, width='stretch')
+                cat = agg_mean(df, "Category")
+                insight_box("Category Insights", [
+                    f"<b>{cat.iloc[-1]['Category']}</b> is the slowest "
+                    f"({cat.iloc[-1]['Avg_Delivery_Time']:.0f} min avg).",
+                    f"<b>{cat.iloc[0]['Category']}</b> is the fastest "
+                    f"({cat.iloc[0]['Avg_Delivery_Time']:.0f} min avg).",
+                ])
 
-        cat = agg_mean(df, "Category")
-        s5_bullets = [
-            f"<b>{cat.iloc[-1]['Category']}</b> is the slowest category "
-            f"({cat.iloc[-1]['Avg_Delivery_Time']:.0f} min avg).",
-            f"<b>{cat.iloc[0]['Category']}</b> is the fastest "
-            f"({cat.iloc[0]['Avg_Delivery_Time']:.0f} min avg).",
-            "Wide boxes signal inconsistent handling — review packing & routing.",
-        ]
-        insight_box("Category Insights", s5_bullets)
+        with r4c2:
+            with chart_card("monthly", "📈", "Monthly Trends",
+                            "Average delivery time and volume trend over time."):
+                monthly = (
+                    df.groupby("Month", observed=True)
+                    .agg(Avg_Time=("Delivery_Time", "mean"),
+                         Deliveries=("Delivery_Time", "count"))
+                    .reset_index()
+                )
+                fig_m = px.line(
+                    monthly, x="Month", y="Avg_Time", markers=True,
+                    labels={"Avg_Time": "Avg Delivery Time (min)", "Month": ""},
+                    color_discrete_sequence=[PRIMARY_1],
+                )
+                fig_m.update_traces(line=dict(width=3), marker=dict(size=8))
+                style_fig(fig_m, height=360, showlegend=False)
+                st.plotly_chart(fig_m, width="stretch", key="pc_monthly")
+
+                if len(monthly) >= 2:
+                    best_m = monthly.loc[monthly["Avg_Time"].idxmin()]
+                    worst_m = monthly.loc[monthly["Avg_Time"].idxmax()]
+                    insight_box("Trend Insights", [
+                        f"Fastest month: <b>{best_m['Month']}</b> at {best_m['Avg_Time']:.0f} min.",
+                        f"Slowest month: <b>{worst_m['Month']}</b> at {worst_m['Avg_Time']:.0f} min.",
+                    ])
+
+        st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
+
+        # ---------------- ROW 5 : Late Delivery | Traffic Impact ---------
+        r5c1, r5c2 = st.columns(2, gap="large")
+        with r5c1:
+            with chart_card("late", "⏰", "Late Delivery Analysis",
+                            "Late delivery percentage by area (above mean + 1σ)."):
+                late_area = agg_late(df, "Area")
+                fig_l = px.bar(
+                    late_area, x="Area", y="Late_Pct", color="Late_Pct",
+                    labels={"Late_Pct": "Late Delivery %", "Area": ""},
+                    color_continuous_scale=[PRIMARY_3, ACCENT_1], text_auto=".1f",
+                )
+                fig_l.update_layout(coloraxis_showscale=False)
+                style_fig(fig_l, height=340, showlegend=False)
+                st.plotly_chart(fig_l, width="stretch", key="pc_late")
+
+                if len(late_area):
+                    worst = late_area.iloc[0]
+                    insight_box("SLA Risk", [
+                        f"<b>{worst['Area']}</b> has the highest late rate at "
+                        f"<b>{worst['Late_Pct']:.1f}%</b>.",
+                        f"Overall late rate: <b>{df['Late_Delivery'].mean()*100:.1f}%</b> "
+                        f"of {len(df):,} deliveries.",
+                    ])
+
+        with r5c2:
+            with chart_card("traffic", "🚦", "Traffic Impact Analysis",
+                            "How traffic conditions drive average delivery time."):
+                traf = agg_mean(df, "Traffic")
+                fig_t = px.bar(
+                    traf, x="Traffic", y="Avg_Delivery_Time", color="Traffic",
+                    labels={"Avg_Delivery_Time": "Avg Time (min)", "Traffic": ""},
+                    color_discrete_map=TRAFFIC_COLORS, text_auto=".0f",
+                )
+                style_fig(fig_t, height=340, showlegend=False)
+                st.plotly_chart(fig_t, width="stretch", key="pc_traffic")
+
+                if len(traf) >= 2:
+                    delta = traf.iloc[-1]["Avg_Delivery_Time"] - traf.iloc[0]["Avg_Delivery_Time"]
+                    insight_box("Traffic Insights", [
+                        f"<b>{traf.iloc[-1]['Traffic']}</b> traffic is slowest at "
+                        f"{traf.iloc[-1]['Avg_Delivery_Time']:.0f} min.",
+                        f"Delta vs <b>{traf.iloc[0]['Traffic']}</b> traffic: "
+                        f"<b>+{delta:.0f} min</b>.",
+                    ])
+
+        st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+
+        # ---------------- ROW 6 : AI INSIGHTS PANEL ----------------------
+        section_header("🧠", "AI Insights Panel",
+                       "Automated intelligence distilled from your filtered dataset.")
+        ai_cards = build_ai_panel(df)
+        ai_cols = st.columns(len(ai_cards), gap="medium")
+        for i, (col, card) in enumerate(zip(ai_cols, ai_cards)):
+            with col:
+                st.markdown(
+                    ai_panel_card(card["icon"], card["label"], card["value"],
+                                  card["desc"], AI_GRADIENTS[card["key"]], i * 0.08),
+                    unsafe_allow_html=True,
+                )
 
     # ==================================================================
     #  TAB 2 — INSIGHTS (AI INSIGHT ENGINE)
@@ -1019,7 +1263,7 @@ def main() -> None:
                        "Automatic business intelligence derived from your filtered data.")
 
         insights = build_insights(df)
-        left, right = st.columns(2)
+        left, right = st.columns(2, gap="large")
         for i, ins in enumerate(insights):
             target = left if i % 2 == 0 else right
             with target:
@@ -1028,7 +1272,7 @@ def main() -> None:
                     unsafe_allow_html=True,
                 )
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
         section_header("📌", "Executive Summary",
                        "Top-line narrative for stakeholders.")
         top_ins = insights[:4]
@@ -1054,183 +1298,194 @@ def main() -> None:
                        "Ten premium enhancement visuals beyond the core dashboard.")
 
         # 1 & 2 ---------------------------------------------------------
-        c1, c2 = st.columns(2)
+        c1, c2 = st.columns(2, gap="large")
         with c1:
-            fig_h = px.histogram(
-                df, x="Delivery_Time", nbins=40,
-                title="1 · Delivery Time Histogram",
-                labels={"Delivery_Time": "Delivery Time (min)"},
-                color_discrete_sequence=[PRIMARY_2],
-            )
-            fig_h.add_vline(
-                x=df["Delivery_Time"].mean(), line_dash="dash",
-                line_color=ACCENT_1,
-                annotation_text=f"Mean {df['Delivery_Time'].mean():.0f}",
-            )
-            style_fig(fig_h, height=360, showlegend=False)
-            st.plotly_chart(fig_h, width='stretch')
+            with chart_card("hist", "📊", "1 · Delivery Time Histogram",
+                            "Distribution of delivery durations with mean marker."):
+                fig_h = px.histogram(
+                    df, x="Delivery_Time", nbins=40,
+                    labels={"Delivery_Time": "Delivery Time (min)"},
+                    color_discrete_sequence=[PRIMARY_2],
+                )
+                fig_h.add_vline(
+                    x=df["Delivery_Time"].mean(), line_dash="dash", line_color=ACCENT_1,
+                    annotation_text=f"Mean {df['Delivery_Time'].mean():.0f}",
+                )
+                style_fig(fig_h, height=340, showlegend=False)
+                st.plotly_chart(fig_h, width="stretch", key="pc_hist")
         with c2:
-            monthly = (
-                df.groupby("Month", observed=True)["Delivery_Time"].mean().reset_index()
-            )
-            fig_m = px.line(
-                monthly, x="Month", y="Delivery_Time", markers=True,
-                title="2 · Monthly Trend Line",
-                labels={"Delivery_Time": "Avg Delivery Time (min)", "Month": ""},
-                color_discrete_sequence=[PRIMARY_1],
-            )
-            fig_m.update_traces(line=dict(width=3), marker=dict(size=8))
-            style_fig(fig_m, height=360, showlegend=False)
-            st.plotly_chart(fig_m, width='stretch')
+            with chart_card("monthly2", "📈", "2 · Monthly Trend Line",
+                            "Average delivery time per month."):
+                monthly = (
+                    df.groupby("Month", observed=True)["Delivery_Time"].mean().reset_index()
+                )
+                fig_m = px.line(
+                    monthly, x="Month", y="Delivery_Time", markers=True,
+                    labels={"Delivery_Time": "Avg Delivery Time (min)", "Month": ""},
+                    color_discrete_sequence=[PRIMARY_1],
+                )
+                fig_m.update_traces(line=dict(width=3), marker=dict(size=8))
+                style_fig(fig_m, height=340, showlegend=False)
+                st.plotly_chart(fig_m, width="stretch", key="pc_monthly2")
+
+        st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
         # 3 & 4 ---------------------------------------------------------
-        c3, c4 = st.columns(2)
+        c3, c4 = st.columns(2, gap="large")
         with c3:
-            late_area = agg_late(df, "Area")
-            fig_l = px.bar(
-                late_area, x="Area", y="Late_Pct", color="Late_Pct",
-                title="3 · Late Delivery % by Area",
-                labels={"Late_Pct": "Late Delivery %", "Area": ""},
-                color_continuous_scale=[PRIMARY_3, ACCENT_1],
-                text_auto=".1f",
-            )
-            fig_l.update_layout(coloraxis_showscale=False)
-            style_fig(fig_l, height=360, showlegend=False)
-            st.plotly_chart(fig_l, width='stretch')
+            with chart_card("late2", "⏰", "3 · Late Delivery % by Area",
+                            "Share of deliveries exceeding the late threshold."):
+                late_area = agg_late(df, "Area")
+                fig_l = px.bar(
+                    late_area, x="Area", y="Late_Pct", color="Late_Pct",
+                    labels={"Late_Pct": "Late Delivery %", "Area": ""},
+                    color_continuous_scale=[PRIMARY_3, ACCENT_1], text_auto=".1f",
+                )
+                fig_l.update_layout(coloraxis_showscale=False)
+                style_fig(fig_l, height=340, showlegend=False)
+                st.plotly_chart(fig_l, width="stretch", key="pc_late2")
         with c4:
-            agent_area = (
-                df.groupby("Area", observed=True)["Agent_ID"].nunique().reset_index()
-                .rename(columns={"Agent_ID": "Agents"})
-            )
-            fig_a = px.bar(
-                agent_area, x="Area", y="Agents", color="Area",
-                title="4 · Agent Count by Area",
-                color_discrete_sequence=GRADIENT_SEQ, text_auto=True,
-            )
-            style_fig(fig_a, height=360, showlegend=False)
-            st.plotly_chart(fig_a, width='stretch')
+            with chart_card("agents", "👥", "4 · Agent Count by Area",
+                            "Number of distinct agents operating per area."):
+                agent_area = (
+                    df.groupby("Area", observed=True)["Agent_ID"].nunique().reset_index()
+                    .rename(columns={"Agent_ID": "Agents"})
+                )
+                fig_a = px.bar(
+                    agent_area, x="Area", y="Agents", color="Area",
+                    color_discrete_sequence=GRADIENT_SEQ, text_auto=True,
+                )
+                style_fig(fig_a, height=340, showlegend=False)
+                st.plotly_chart(fig_a, width="stretch", key="pc_agents")
+
+        st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
         # 5 & 6 ---------------------------------------------------------
-        c5, c6 = st.columns(2)
+        c5, c6 = st.columns(2, gap="large")
         with c5:
-            traf = agg_mean(df, "Traffic")
-            fig_t = px.bar(
-                traf, x="Traffic", y="Avg_Delivery_Time", color="Traffic",
-                title="5 · Traffic Impact Analysis",
-                labels={"Avg_Delivery_Time": "Avg Time (min)", "Traffic": ""},
-                color_discrete_map=TRAFFIC_COLORS, text_auto=".0f",
-            )
-            style_fig(fig_t, height=360, showlegend=False)
-            st.plotly_chart(fig_t, width='stretch')
+            with chart_card("traffic2", "🚦", "5 · Traffic Impact Analysis",
+                            "Average delivery time by traffic condition."):
+                traf = agg_mean(df, "Traffic")
+                fig_t = px.bar(
+                    traf, x="Traffic", y="Avg_Delivery_Time", color="Traffic",
+                    labels={"Avg_Delivery_Time": "Avg Time (min)", "Traffic": ""},
+                    color_discrete_map=TRAFFIC_COLORS, text_auto=".0f",
+                )
+                style_fig(fig_t, height=340, showlegend=False)
+                st.plotly_chart(fig_t, width="stretch", key="pc_traffic2")
         with c6:
-            wea = agg_mean(df, "Weather")
-            fig_w = px.bar(
-                wea, x="Weather", y="Avg_Delivery_Time", color="Weather",
-                title="6 · Weather Impact Analysis",
-                labels={"Avg_Delivery_Time": "Avg Time (min)", "Weather": ""},
-                color_discrete_sequence=GRADIENT_SEQ, text_auto=".0f",
-            )
-            style_fig(fig_w, height=360, showlegend=False)
-            st.plotly_chart(fig_w, width='stretch')
+            with chart_card("weather2", "🌦️", "6 · Weather Impact Analysis",
+                            "Average delivery time by weather condition."):
+                wea = agg_mean(df, "Weather")
+                fig_w = px.bar(
+                    wea, x="Weather", y="Avg_Delivery_Time", color="Weather",
+                    labels={"Avg_Delivery_Time": "Avg Time (min)", "Weather": ""},
+                    color_discrete_sequence=GRADIENT_SEQ, text_auto=".0f",
+                )
+                style_fig(fig_w, height=340, showlegend=False)
+                st.plotly_chart(fig_w, width="stretch", key="pc_weather2")
+
+        st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
         # 7 -------------------------------------------------------------
-        section_header("🔗", "7 · Delivery Time Correlation Matrix",
-                       "Relationships between key numeric operational variables.")
-        num_cols = ["Delivery_Time", "Agent_Rating", "Agent_Age", "Late_Delivery"]
-        corr_df = df[num_cols].copy()
-        corr_df["Late_Delivery"] = corr_df["Late_Delivery"].astype(int)
-        corr = corr_df.corr()
-        fig_c = px.imshow(
-            corr, text_auto=".2f", aspect="auto",
-            color_continuous_scale=[ACCENT_1, "#FFFFFF", PRIMARY_1],
-            zmin=-1, zmax=1,
-            title="Correlation Matrix",
-        )
-        fig_c.update_traces(textfont=dict(size=12))
-        style_fig(fig_c, height=420, showlegend=False)
-        st.plotly_chart(fig_c, width='stretch')
+        with chart_card("corr", "🔗", "7 · Delivery Time Correlation Matrix",
+                        "Relationships between key numeric operational variables."):
+            num_cols = ["Delivery_Time", "Agent_Rating", "Agent_Age", "Late_Delivery"]
+            corr_df = df[num_cols].copy()
+            corr_df["Late_Delivery"] = corr_df["Late_Delivery"].astype(int)
+            corr = corr_df.corr()
+            fig_c = px.imshow(
+                corr, text_auto=".2f", aspect="auto",
+                color_continuous_scale=[ACCENT_1, "#FFFFFF", PRIMARY_1],
+                zmin=-1, zmax=1,
+            )
+            fig_c.update_traces(textfont=dict(size=12))
+            style_fig(fig_c, height=400, showlegend=False)
+            st.plotly_chart(fig_c, width="stretch", key="pc_corr")
+
+        st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
         # 8 & 9 ---------------------------------------------------------
-        c8, c9 = st.columns(2)
+        c8, c9 = st.columns(2, gap="large")
         with c8:
-            agents = (
-                df.groupby("Agent_ID", observed=True)
-                .agg(
-                    Avg_Rating=("Agent_Rating", "mean"),
-                    Avg_Time=("Delivery_Time", "mean"),
-                    Deliveries=("Order_ID", "count"),
+            with chart_card("topagents", "🏅", "8 · Top 10 Best Agents",
+                            "Highest rated agents with the fastest average times."):
+                agents = (
+                    df.groupby("Agent_ID", observed=True)
+                    .agg(Avg_Rating=("Agent_Rating", "mean"),
+                         Avg_Time=("Delivery_Time", "mean"),
+                         Deliveries=("Order_ID", "count"))
+                    .reset_index()
                 )
-                .reset_index()
-            )
-            agents = agents[agents["Deliveries"] >= max(3, int(agents["Deliveries"].median()))]
-            top_agents = agents.sort_values(
-                ["Avg_Rating", "Avg_Time"], ascending=[False, True]
-            ).head(10)
-            fig_ta = px.bar(
-                top_agents, x="Avg_Rating", y="Agent_ID", orientation="h",
-                title="8 · Top 10 Best Agents",
-                labels={"Avg_Rating": "Avg Rating", "Agent_ID": ""},
-                color="Avg_Rating", color_continuous_scale=[PRIMARY_3, PRIMARY_1],
-                hover_data=["Avg_Time", "Deliveries"], text_auto=".2f",
-            )
-            fig_ta.update_layout(coloraxis_showscale=False)
-            fig_ta.update_yaxes(categoryorder="total ascending")
-            style_fig(fig_ta, height=400, showlegend=False)
-            st.plotly_chart(fig_ta, width='stretch')
+                agents = agents[agents["Deliveries"] >= max(3, int(agents["Deliveries"].median()))]
+                top_agents = agents.sort_values(
+                    ["Avg_Rating", "Avg_Time"], ascending=[False, True]
+                ).head(10)
+                fig_ta = px.bar(
+                    top_agents, x="Avg_Rating", y="Agent_ID", orientation="h",
+                    labels={"Avg_Rating": "Avg Rating", "Agent_ID": ""},
+                    color="Avg_Rating", color_continuous_scale=[PRIMARY_3, PRIMARY_1],
+                    hover_data=["Avg_Time", "Deliveries"], text_auto=".2f",
+                )
+                fig_ta.update_layout(coloraxis_showscale=False)
+                fig_ta.update_yaxes(categoryorder="total ascending")
+                style_fig(fig_ta, height=380, showlegend=False)
+                st.plotly_chart(fig_ta, width="stretch", key="pc_topagents")
         with c9:
-            slow_areas = agg_mean(df, "Area").sort_values(
-                "Avg_Delivery_Time", ascending=False
-            ).head(10)
-            fig_sa = px.bar(
-                slow_areas, x="Avg_Delivery_Time", y="Area", orientation="h",
-                title="9 · Top 10 Slowest Areas",
-                labels={"Avg_Delivery_Time": "Avg Time (min)", "Area": ""},
-                color="Avg_Delivery_Time", color_continuous_scale=[PRIMARY_3, ACCENT_1],
-                text_auto=".0f",
-            )
-            fig_sa.update_layout(coloraxis_showscale=False)
-            fig_sa.update_yaxes(categoryorder="total ascending")
-            style_fig(fig_sa, height=400, showlegend=False)
-            st.plotly_chart(fig_sa, width='stretch')
+            with chart_card("slowareas", "🐌", "9 · Top 10 Slowest Areas",
+                            "Areas with the highest average delivery time."):
+                slow_areas = agg_mean(df, "Area").sort_values(
+                    "Avg_Delivery_Time", ascending=False
+                ).head(10)
+                fig_sa = px.bar(
+                    slow_areas, x="Avg_Delivery_Time", y="Area", orientation="h",
+                    labels={"Avg_Delivery_Time": "Avg Time (min)", "Area": ""},
+                    color="Avg_Delivery_Time", color_continuous_scale=[PRIMARY_3, ACCENT_1],
+                    text_auto=".0f",
+                )
+                fig_sa.update_layout(coloraxis_showscale=False)
+                fig_sa.update_yaxes(categoryorder="total ascending")
+                style_fig(fig_sa, height=380, showlegend=False)
+                st.plotly_chart(fig_sa, width="stretch", key="pc_slowareas")
+
+        st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
         # 10 ------------------------------------------------------------
-        section_header("🏅", "10 · Delivery Performance Scorecard",
-                       "Consolidated area-level operational scorecard.")
-        sc = agg_mean(df, "Area").rename(columns={"Avg_Delivery_Time": "Avg_Time"})
-        late_map = agg_late(df, "Area").set_index("Area")["Late_Pct"]
-        sc["Late_%"] = sc["Area"].map(late_map).fillna(0)
-        rating_map = df.groupby("Area", observed=True)["Agent_Rating"].mean()
-        sc["Rating"] = sc["Area"].map(rating_map).fillna(0)
+        with chart_card("scorecard", "🏆", "10 · Delivery Performance Scorecard",
+                        "Consolidated area-level operational scorecard."):
+            sc = agg_mean(df, "Area").rename(columns={"Avg_Delivery_Time": "Avg_Time"})
+            late_map = agg_late(df, "Area").set_index("Area")["Late_Pct"]
+            sc["Late_%"] = sc["Area"].map(late_map).fillna(0)
+            rating_map = df.groupby("Area", observed=True)["Agent_Rating"].mean()
+            sc["Rating"] = sc["Area"].map(rating_map).fillna(0)
 
-        def _grade(row) -> str:
-            score = 0
-            score += 1 if row["Avg_Time"] <= sc["Avg_Time"].median() else 0
-            score += 1 if row["Late_%"] <= sc["Late_%"].median() else 0
-            score += 1 if row["Rating"] >= sc["Rating"].median() else 0
-            return ["badge-bad", "badge-warn", "badge-warn", "badge-good"][score]
+            def _score(row) -> int:
+                s = 0
+                s += 1 if row["Avg_Time"] <= sc["Avg_Time"].median() else 0
+                s += 1 if row["Late_%"] <= sc["Late_%"].median() else 0
+                s += 1 if row["Rating"] >= sc["Rating"].median() else 0
+                return s
 
-        def _label(row) -> str:
-            score = 0
-            score += 1 if row["Avg_Time"] <= sc["Avg_Time"].median() else 0
-            score += 1 if row["Late_%"] <= sc["Late_%"].median() else 0
-            score += 1 if row["Rating"] >= sc["Rating"].median() else 0
-            return ["Needs Attention", "Below Target", "On Track", "Excellent"][score]
+            def _grade(row) -> str:
+                return ["badge-bad", "badge-warn", "badge-warn", "badge-good"][_score(row)]
 
-        rows_html = ""
-        for _, r in sc.sort_values("Avg_Time").iterrows():
-            rows_html += f"""
-                <tr>
-                    <td>{r['Area']}</td>
-                    <td>{r['Avg_Time']:.1f} min</td>
-                    <td>{int(r['Deliveries']):,}</td>
-                    <td>{r['Late_%']:.1f}%</td>
-                    <td>{r['Rating']:.2f} ★</td>
-                    <td><span class="badge {_grade(r)}">{_label(r)}</span></td>
-                </tr>
-            """
-        st.markdown(
-            f"""
-            <div class="glass-card">
+            def _label(row) -> str:
+                return ["Needs Attention", "Below Target", "On Track", "Excellent"][_score(row)]
+
+            rows_html = ""
+            for _, r in sc.sort_values("Avg_Time").iterrows():
+                rows_html += f"""
+                    <tr>
+                        <td>{r['Area']}</td>
+                        <td>{r['Avg_Time']:.1f} min</td>
+                        <td>{int(r['Deliveries']):,}</td>
+                        <td>{r['Late_%']:.1f}%</td>
+                        <td>{r['Rating']:.2f} ★</td>
+                        <td><span class="badge {_grade(r)}">{_label(r)}</span></td>
+                    </tr>
+                """
+            st.markdown(
+                f"""
                 <table class="scorecard">
                     <thead>
                         <tr>
@@ -1240,10 +1495,9 @@ def main() -> None:
                     </thead>
                     <tbody>{rows_html}</tbody>
                 </table>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+                """,
+                unsafe_allow_html=True,
+            )
 
     # ==================================================================
     #  TAB 4 — OPERATIONS (EXPORTS & RAW DATA)
@@ -1253,7 +1507,7 @@ def main() -> None:
                        "Download the filtered dataset, a PDF report or a dashboard snapshot.")
 
         insights = build_insights(df)
-        e1, e2, e3 = st.columns(3)
+        e1, e2, e3 = st.columns(3, gap="large")
 
         with e1:
             st.download_button(
@@ -1261,10 +1515,10 @@ def main() -> None:
                 data=df_to_csv_bytes(df),
                 file_name=f"logisight_filtered_{datetime.now():%Y%m%d_%H%M}.csv",
                 mime="text/csv",
-                width='stretch',
+                width="stretch",
             )
         with e2:
-            if st.button("📄 Generate PDF Report", width='stretch'):
+            if st.button("📄 Generate PDF Report", width="stretch"):
                 with st.spinner("Building PDF report…"):
                     pdf_bytes = build_pdf_report(df, insights)
                     st.session_state["pdf_bytes"] = pdf_bytes
@@ -1274,10 +1528,10 @@ def main() -> None:
                     data=st.session_state["pdf_bytes"],
                     file_name=f"logisight_report_{datetime.now():%Y%m%d_%H%M}.pdf",
                     mime="application/pdf",
-                    width='stretch',
+                    width="stretch",
                 )
         with e3:
-            if st.button("🖼️ Export Dashboard Snapshot", width='stretch'):
+            if st.button("🖼️ Export Dashboard Snapshot", width="stretch"):
                 with st.spinner("Rendering snapshot…"):
                     png = build_snapshot_png(df)
                     st.session_state["png_bytes"] = png
@@ -1287,15 +1541,15 @@ def main() -> None:
                     data=st.session_state["png_bytes"],
                     file_name=f"logisight_snapshot_{datetime.now():%Y%m%d_%H%M}.png",
                     mime="image/png",
-                    width='stretch',
+                    width="stretch",
                 )
             elif "png_bytes" in st.session_state and st.session_state["png_bytes"] is None:
                 st.caption("⚠️ Snapshot rendering failed. Please retry.")
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
         section_header("🗃️", "Filtered Dataset Preview",
                        f"Showing {min(len(df), 1000):,} of {len(df):,} filtered records.")
-        st.dataframe(df.head(1000), width='stretch', height=420)
+        st.dataframe(df.head(1000), width="stretch", height=420)
 
     # ------------------------------------------------------------------
     #  FOOTER
