@@ -1,40 +1,14 @@
-"""
-============================================================================
- LOGISIGHT ANALYTICS
- Last Mile Delivery Intelligence Dashboard  —  Premium SaaS Redesign (v2)
- ---------------------------------------------------------------------------
- A production-ready Streamlit analytics dashboard for logistics managers to
- analyse last-mile delivery performance and surface operational bottlenecks.
-
- Redesign highlights
-   • Premium gradient KPI metric cards (exact brand gradients)
-   • Every chart wrapped in a white "premium card" container
-   • Row-based dashboard layout (KPI row -> 5 chart rows -> AI panel)
-   • Glassmorphism sidebar with rounded filter containers
-   • AI Insights Panel with colourful BI cards
-   • Full-dataset processing (no sampling)
-
- Author : LogiSight Analytics
- Stack  : Streamlit + Pandas + Plotly + Scikit-learn + Statsmodels
-============================================================================
-"""
-
 from __future__ import annotations
-
 import io
 import os
 from contextlib import contextmanager
 from datetime import datetime
-
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-# ============================================================================
-#  PAGE CONFIGURATION  (must be the first Streamlit call)
-# ============================================================================
 st.set_page_config(
     page_title="LogiSight Analytics | Last Mile Delivery Intelligence",
     page_icon="🚚",
@@ -42,9 +16,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ============================================================================
-#  DESIGN TOKENS
-# ============================================================================
 PRIMARY_1 = "#0066FF"
 PRIMARY_2 = "#3B82F6"
 PRIMARY_3 = "#38BDF8"
@@ -58,8 +29,6 @@ TEXT_MUTED = "#64748B"
 PRIMARY_SEQ = [PRIMARY_1, PRIMARY_2, PRIMARY_3]
 ACCENT_SEQ = [ACCENT_1, ACCENT_2, ACCENT_3]
 GRADIENT_SEQ = ["#0066FF", "#3B82F6", "#38BDF8", "#55E3FF", "#8271B7", "#FF55C5"]
-
-# ---- Exact KPI gradients (per redesign specification) ----------------------
 KPI_GRADIENTS = {
     "deliveries": "linear-gradient(135deg,#2563EB,#3B82F6)",   # Card 1 · blue
     "time":       "linear-gradient(135deg,#7C3AED,#A855F7)",   # Card 2 · purple
@@ -68,8 +37,6 @@ KPI_GRADIENTS = {
     "vehicle":    "linear-gradient(135deg,#EC4899,#F472B6)",   # Card 5 · pink
     "area":       "linear-gradient(135deg,#F59E0B,#FBBF24)",   # Card 6 · amber
 }
-
-# ---- AI Insights Panel gradients -------------------------------------------
 AI_GRADIENTS = {
     "vehicle": "linear-gradient(135deg,#2563EB,#3B82F6)",
     "traffic": "linear-gradient(135deg,#F97316,#FB923C)",
@@ -97,23 +64,12 @@ DATA_CANDIDATES = [
     "data/sample_data.csv",
 ]
 
-
-# ============================================================================
-#  CUSTOM CSS LOADER
-# ============================================================================
-# ---------------------------------------------------------------------------
-#  EMBEDDED STYLESHEET  (self-contained: works even without assets/style.css)
-# ---------------------------------------------------------------------------
-_EMBEDDED_CSS = r"""/* ============================================================================
+_EMBEDDED_CSS = r"""/* 
    LOGISIGHT ANALYTICS — Premium SaaS Analytics Theme  (v2 Redesign)
    Last Mile Delivery Intelligence Dashboard
-   ============================================================================ */
-
+  
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
-/* ---------------------------------------------------------------------------
-   ROOT DESIGN TOKENS
-   --------------------------------------------------------------------------- */
 :root {
     --primary-1: #0066FF;
     --primary-2: #3B82F6;
@@ -134,10 +90,6 @@ _EMBEDDED_CSS = r"""/* =========================================================
     --grad-primary: linear-gradient(135deg, #0066FF 0%, #3B82F6 55%, #38BDF8 100%);
     --grad-nav: linear-gradient(120deg, #0052CC 0%, #0066FF 40%, #3B82F6 75%, #38BDF8 100%);
 }
-
-/* ---------------------------------------------------------------------------
-   GLOBAL / BASE
-   --------------------------------------------------------------------------- */
 html, body, [class*="css"], .stApp {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
 }
@@ -163,10 +115,6 @@ html, body, [class*="css"], .stApp {
     padding-right: 2.2rem !important;
     max-width: 1650px;
 }
-
-/* ---------------------------------------------------------------------------
-   TOP NAVIGATION BAR
-   --------------------------------------------------------------------------- */
 .ls-navbar {
     background: var(--grad-nav);
     border-radius: var(--radius);
@@ -284,10 +232,6 @@ html, body, [class*="css"], .stApp {
     font-weight: 500;
     margin-bottom: 20px;
 }
-
-/* ---------------------------------------------------------------------------
-   KPI CARDS  (premium metric cards)
-   --------------------------------------------------------------------------- */
 .kpi-card {
     height: 140px;
     border-radius: var(--radius);
@@ -369,10 +313,6 @@ html, body, [class*="css"], .stApp {
     z-index: 2;
     letter-spacing: 0.1px;
 }
-
-/* ---------------------------------------------------------------------------
-   PREMIUM CHART CARD CONTAINERS  (st.container(key="chart_*"))
-   --------------------------------------------------------------------------- */
 [class*="st-key-chart_"] {
     background: #FFFFFF !important;
     border-radius: var(--radius) !important;
@@ -385,10 +325,6 @@ html, body, [class*="css"], .stApp {
 [class*="st-key-chart_"]:hover {
     box-shadow: 0px 18px 45px rgba(0, 0, 0, 0.18) !important;
 }
-
-/* ---------------------------------------------------------------------------
-   GLASS CARDS / SECTION CONTAINERS
-   --------------------------------------------------------------------------- */
 .glass-card {
     background: rgba(255, 255, 255, 0.75);
     backdrop-filter: blur(18px);
@@ -430,10 +366,6 @@ html, body, [class*="css"], .stApp {
     margin-bottom: 8px;
     padding-left: 42px;
 }
-
-/* ---------------------------------------------------------------------------
-   INSIGHT CARDS (AI Insight Engine)
-   --------------------------------------------------------------------------- */
 .insight-card {
     background: linear-gradient(135deg, rgba(255,255,255,0.97) 0%, rgba(245,248,252,0.97) 100%);
     border-radius: 20px;
@@ -497,10 +429,6 @@ html, body, [class*="css"], .stApp {
     margin-bottom: 5px;
     line-height: 1.5;
 }
-
-/* ---------------------------------------------------------------------------
-   AI INSIGHTS PANEL  (ROW 6 — colorful BI cards)
-   --------------------------------------------------------------------------- */
 .ai-panel-card {
     border-radius: 22px;
     padding: 20px;
@@ -556,10 +484,6 @@ html, body, [class*="css"], .stApp {
     line-height: 1.45;
     position: relative; z-index: 2;
 }
-
-/* ---------------------------------------------------------------------------
-   SCORECARD TABLE
-   --------------------------------------------------------------------------- */
 .scorecard { width: 100%; border-collapse: separate; border-spacing: 0 8px; font-size: 13px; }
 .scorecard th {
     text-align: left; color: var(--text-muted); font-weight: 700;
@@ -576,10 +500,6 @@ html, body, [class*="css"], .stApp {
 .badge-good { background: rgba(16,185,129,0.14); color: #059669; }
 .badge-warn { background: rgba(245,158,11,0.16); color: #D97706; }
 .badge-bad  { background: rgba(239,68,68,0.14); color: #DC2626; }
-
-/* ---------------------------------------------------------------------------
-   SIDEBAR  (glassmorphism + rounded filter containers)
-   --------------------------------------------------------------------------- */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #FFFFFF 0%, #F5F8FC 100%);
     border-right: 1px solid rgba(0, 102, 255, 0.08);
@@ -600,8 +520,6 @@ html, body, [class*="css"], .stApp {
 }
 .sidebar-brand .sb-title { font-size: 18px; font-weight: 800; }
 .sidebar-brand .sb-sub { font-size: 10.5px; opacity: 0.88; letter-spacing: 1px; }
-
-/* Rounded glass containers for filter groups */
 [class*="st-key-filter_"] {
     background: rgba(255, 255, 255, 0.85) !important;
     backdrop-filter: blur(12px);
@@ -622,8 +540,6 @@ html, body, [class*="css"], .stApp {
     align-items: center;
     gap: 7px;
 }
-
-/* Streamlit widget polish */
 [data-testid="stSidebar"] [data-baseweb="select"] > div {
     border-radius: 13px !important;
     border-color: rgba(0, 102, 255, 0.18) !important;
@@ -647,10 +563,6 @@ html, body, [class*="css"], .stApp {
 }
 [data-baseweb="tag"] span { color: #ffffff !important; font-weight: 600 !important; }
 [data-baseweb="tag"] svg { fill: #ffffff !important; }
-
-/* ---------------------------------------------------------------------------
-   BUTTONS
-   --------------------------------------------------------------------------- */
 .stButton > button, .stDownloadButton > button {
     border-radius: 14px !important;
     border: none !important;
@@ -667,10 +579,6 @@ html, body, [class*="css"], .stApp {
     transform: translateY(-2px) !important;
     box-shadow: 0 12px 28px rgba(0, 102, 255, 0.36) !important;
 }
-
-/* ---------------------------------------------------------------------------
-   TABS
-   --------------------------------------------------------------------------- */
 .stTabs [data-baseweb="tab-list"] {
     gap: 8px;
     background: rgba(255, 255, 255, 0.75);
@@ -694,10 +602,6 @@ html, body, [class*="css"], .stApp {
 }
 .stTabs [data-baseweb="tab-highlight"] { display: none; }
 .stTabs [data-baseweb="tab-border"] { display: none; }
-
-/* ---------------------------------------------------------------------------
-   METRICS / MISC
-   --------------------------------------------------------------------------- */
 [data-testid="stMetric"] {
     background: #ffffff; border-radius: 18px; padding: 16px 18px;
     box-shadow: var(--shadow-soft); border: 1px solid rgba(255,255,255,0.9);
@@ -706,10 +610,6 @@ html, body, [class*="css"], .stApp {
 [data-testid="stMetricLabel"] { color: var(--text-muted); font-weight: 600; }
 [data-testid="stDataFrame"] { border-radius: 18px; overflow: hidden; box-shadow: var(--shadow-soft); }
 .js-plotly-plot .plotly { border-radius: 16px; }
-
-/* ---------------------------------------------------------------------------
-   ANIMATIONS
-   --------------------------------------------------------------------------- */
 @keyframes fadeUp {
     from { opacity: 0; transform: translateY(22px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -723,8 +623,6 @@ html, body, [class*="css"], .stApp {
     70%  { box-shadow: 0 0 0 10px rgba(85, 227, 255, 0); }
     100% { box-shadow: 0 0 0 0 rgba(85, 227, 255, 0); }
 }
-
-/* Responsive */
 @media (max-width: 1100px) {
     .ls-navbar { flex-direction: column; gap: 14px; align-items: flex-start; }
     .ls-nav-tabs { flex-wrap: wrap; }
@@ -734,13 +632,6 @@ html, body, [class*="css"], .stApp {
 
 
 def load_css(path: str = "assets/style.css") -> None:
-    """
-    Inject the premium glassmorphism stylesheet into the app.
-
-    Priority:
-      1. external file (assets/style.css) if present  -> easy live editing
-      2. embedded stylesheet (always available)       -> deployment-proof
-    """
     css = _EMBEDDED_CSS
     try:
         if os.path.exists(path):
@@ -752,34 +643,16 @@ def load_css(path: str = "assets/style.css") -> None:
         css = _EMBEDDED_CSS
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
-
 load_css()
-
-
-# ============================================================================
-#  DATA LOADING  (cached)
-# ============================================================================
 @st.cache_data(show_spinner=False)
 def load_data(path: str) -> pd.DataFrame:
     """Load the raw CSV dataset from disk."""
     return pd.read_csv(path)
 
-
 def resolve_dataset() -> tuple[pd.DataFrame, str]:
-    """
-    Find and load the dataset.
-
-    Priority:
-      1. full CSV on disk (Last_mile_Delivery_Data.csv)      -> preferred
-      2. embedded full dataset (embedded_data.py)            -> deployment-proof
-      3. any smaller CSV on disk (sample_data.csv)           -> last resort
-    """
-    # 1) full dataset on disk
     for candidate in DATA_CANDIDATES:
         if os.path.exists(candidate):
             return load_data(candidate), candidate
-
-    # 2) embedded full dataset (guarantees all 43,739 rows)
     try:
         from embedded_data import get_full_csv_bytes
         raw = pd.read_csv(io.BytesIO(get_full_csv_bytes()))
@@ -792,57 +665,31 @@ def resolve_dataset() -> tuple[pd.DataFrame, str]:
         "in the project root, or include `embedded_data.py`."
     )
     st.stop()
-
-
-# ============================================================================
-#  DATA CLEANING & FEATURE ENGINEERING  (cached)
-# ============================================================================
 @st.cache_data(show_spinner=False)
 def clean_data(raw: pd.DataFrame) -> pd.DataFrame:
-    """
-    Full cleaning pipeline:
-      - strip whitespace from text columns
-      - remove duplicate rows
-      - handle missing values
-      - fix out-of-range ratings
-      - convert datatypes (dates / times)
-      - create Age Group column
-      - create Late Delivery flag (Delivery_Time > mean + 1 std)
-    """
     df = raw.copy()
-
-    # ---- 1. Strip whitespace & normalise null sentinels -------------------
     obj_cols = df.select_dtypes(include=["object", "string"]).columns
     null_tokens = {"nan", "none", "null", "nat", "<na>", "n/a", "na", ""}
     for col in obj_cols:
         s = df[col].astype("string").str.strip()
         df[col] = s.mask(s.str.lower().isin(null_tokens))
-
-    # ---- 2. Remove duplicate rows ------------------------------------------
+     
     df = df.drop_duplicates().reset_index(drop=True)
-
-    # ---- 3. Handle missing values ------------------------------------------
     if "Weather" in df.columns:
         df["Weather"] = df["Weather"].fillna(df["Weather"].mode().iloc[0])
     if "Traffic" in df.columns:
         df["Traffic"] = df["Traffic"].fillna(df["Traffic"].mode().iloc[0])
     if "Agent_Rating" in df.columns:
         df["Agent_Rating"] = df["Agent_Rating"].fillna(df["Agent_Rating"].median())
-
-    # ---- 4. Normalise known label typos ------------------------------------
     if "Area" in df.columns:
         df["Area"] = df["Area"].replace({"Metropolitian": "Metropolitan"})
-
-    # ---- 5. Fix out-of-range ratings (data quality: 6.0 outliers) ----------
     if "Agent_Rating" in df.columns:
         df["Agent_Rating"] = pd.to_numeric(df["Agent_Rating"], errors="coerce")
         df["Agent_Rating"] = df["Agent_Rating"].clip(lower=1.0, upper=5.0)
         df["Agent_Rating"] = df["Agent_Rating"].fillna(df["Agent_Rating"].median())
 
-    # ---- 6. Convert datatypes ----------------------------------------------
     df["Order_Date"] = pd.to_datetime(df["Order_Date"], errors="coerce")
     df = df.dropna(subset=["Order_Date"])
-
     df["Agent_Age"] = pd.to_numeric(df["Agent_Age"], errors="coerce")
     df["Delivery_Time"] = pd.to_numeric(df["Delivery_Time"], errors="coerce")
     df = df.dropna(subset=["Agent_Age", "Delivery_Time"])
@@ -852,8 +699,6 @@ def clean_data(raw: pd.DataFrame) -> pd.DataFrame:
     for tcol in ["Order_Time", "Pickup_Time"]:
         if tcol in df.columns:
             df[tcol] = pd.to_datetime(df[tcol], format="%H:%M:%S", errors="coerce").dt.time
-
-    # ---- 7. Age Group feature ----------------------------------------------
     def _age_group(age: int) -> str:
         if age < 25:
             return "Under 25"
@@ -862,13 +707,9 @@ def clean_data(raw: pd.DataFrame) -> pd.DataFrame:
         return "40+"
 
     df["Age_Group"] = df["Agent_Age"].apply(_age_group)
-
-    # ---- 8. Late Delivery flag (mean + 1 std) ------------------------------
     threshold = df["Delivery_Time"].mean() + df["Delivery_Time"].std()
     df["Late_Delivery"] = df["Delivery_Time"] > threshold
     df.attrs["late_threshold"] = float(threshold)
-
-    # ---- 9. Derived time features ------------------------------------------
     df["Month"] = df["Order_Date"].dt.to_period("M").astype(str)
     df["Month_Name"] = df["Order_Date"].dt.strftime("%b %Y")
     df["Day_Name"] = df["Order_Date"].dt.day_name()
@@ -877,7 +718,6 @@ def clean_data(raw: pd.DataFrame) -> pd.DataFrame:
         df["Order_Time"].astype(str), format="%H:%M:%S", errors="coerce"
     ).dt.hour
 
-    # ---- 10. Synthetic Agent ID (dataset has no explicit agent id) ----------
     df["Agent_ID"] = (
         "AGT-"
         + df.groupby(["Agent_Age", "Agent_Rating", "Area"], observed=True)
@@ -886,17 +726,10 @@ def clean_data(raw: pd.DataFrame) -> pd.DataFrame:
         .astype(str)
         .str.zfill(4)
     )
-
     return df.reset_index(drop=True)
 
-
-# ============================================================================
-#  AGGREGATION HELPERS
-# ============================================================================
 def late_threshold(df: pd.DataFrame) -> float:
     return float(df["Delivery_Time"].mean() + df["Delivery_Time"].std())
-
-
 def agg_mean(df: pd.DataFrame, by: str | list[str], value: str = "Delivery_Time") -> pd.DataFrame:
     """Grouped mean + count, sorted ascending by mean."""
     out = (
@@ -907,8 +740,6 @@ def agg_mean(df: pd.DataFrame, by: str | list[str], value: str = "Delivery_Time"
         .sort_values("Avg_Delivery_Time")
     )
     return out
-
-
 def agg_late(df: pd.DataFrame, by: str) -> pd.DataFrame:
     """Late delivery % by a grouping column."""
     out = (
@@ -920,12 +751,7 @@ def agg_late(df: pd.DataFrame, by: str) -> pd.DataFrame:
     out["Late_Pct"] = (out["Late_Pct"] * 100).round(2)
     return out.sort_values("Late_Pct", ascending=False)
 
-
-# ============================================================================
-#  PLOTLY THEME
-# ============================================================================
 def style_fig(fig: go.Figure, height: int = 420, showlegend: bool = True) -> go.Figure:
-    """Apply the LogiSight light theme to any Plotly figure."""
     fig.update_layout(
         template="plotly_white",
         height=height,
@@ -966,12 +792,7 @@ def style_fig(fig: go.Figure, height: int = 420, showlegend: bool = True) -> go.
     )
     return fig
 
-
-# ============================================================================
-#  UI COMPONENT BUILDERS
-# ============================================================================
 def render_navbar(date_label: str) -> None:
-    """Top gradient navigation bar with brand, tabs and date pill."""
     st.markdown(
         f"""
         <div class="ls-navbar">
@@ -997,9 +818,7 @@ def render_navbar(date_label: str) -> None:
         unsafe_allow_html=True,
     )
 
-
 def kpi_card(icon: str, value: str, label: str, sub: str, gradient: str, delay: float = 0.0) -> str:
-    """Return HTML for a single premium gradient KPI metric card."""
     return f"""
         <div class="kpi-card" style="background:{gradient};animation-delay:{delay}s;">
             <div class="kpi-top">
@@ -1010,15 +829,8 @@ def kpi_card(icon: str, value: str, label: str, sub: str, gradient: str, delay: 
             <div class="kpi-sub">{sub}</div>
         </div>
     """
-
-
 @contextmanager
 def chart_card(key: str, icon: str, title: str, desc: str):
-    """
-    Context manager that renders a premium white chart container.
-    The container receives the Streamlit class `st-key-chart_<key>` which is
-    styled by the stylesheet (25px radius, soft shadow, padding).
-    """
     with st.container(key=f"chart_{key}"):
         st.markdown(
             f"""
@@ -1028,8 +840,6 @@ def chart_card(key: str, icon: str, title: str, desc: str):
             unsafe_allow_html=True,
         )
         yield
-
-
 def section_header(icon: str, title: str, desc: str = "") -> None:
     desc_html = f'<div class="section-desc">{desc}</div>' if desc else ""
     st.markdown(
@@ -1039,8 +849,6 @@ def section_header(icon: str, title: str, desc: str = "") -> None:
         """,
         unsafe_allow_html=True,
     )
-
-
 def insight_box(title: str, bullets: list[str]) -> None:
     items = "".join(f"<li>{b}</li>" for b in bullets)
     st.markdown(
@@ -1052,8 +860,6 @@ def insight_box(title: str, bullets: list[str]) -> None:
         """,
         unsafe_allow_html=True,
     )
-
-
 def insight_card(icon: str, text: str, tag: str, variant: str = "") -> str:
     return f"""
         <div class="insight-card {variant}">
@@ -1064,10 +870,7 @@ def insight_card(icon: str, text: str, tag: str, variant: str = "") -> str:
             </div>
         </div>
     """
-
-
 def ai_panel_card(icon: str, label: str, value: str, desc: str, gradient: str, delay: float = 0.0) -> str:
-    """Return HTML for a colourful AI Insights Panel card."""
     return f"""
         <div class="ai-panel-card" style="background:{gradient};animation-delay:{delay}s;">
             <div class="ai-ico">{icon}</div>
@@ -1076,19 +879,10 @@ def ai_panel_card(icon: str, label: str, value: str, desc: str, gradient: str, d
             <div class="ai-desc">{desc}</div>
         </div>
     """
-
-
-# ============================================================================
-#  AI INSIGHT ENGINE
-# ============================================================================
 def build_insights(df: pd.DataFrame) -> list[dict]:
-    """Generate automatic business insights from the filtered data."""
     insights: list[dict] = []
-
     if df.empty:
         return insights
-
-    # --- Traffic impact -----------------------------------------------------
     traf = agg_mean(df, "Traffic")
     if len(traf) >= 2:
         slowest = traf.iloc[-1]
@@ -1105,8 +899,6 @@ def build_insights(df: pd.DataFrame) -> list[dict]:
                 variant="ic-pink",
             )
         )
-
-    # --- Vehicle impact -----------------------------------------------------
     veh = agg_mean(df, "Vehicle")
     if len(veh) >= 2:
         fast_v = veh.iloc[0]
@@ -1123,8 +915,6 @@ def build_insights(df: pd.DataFrame) -> list[dict]:
                 variant="ic-cyan",
             )
         )
-
-    # --- Area impact --------------------------------------------------------
     area = agg_mean(df, "Area")
     if len(area) >= 1:
         worst = area.iloc[-1]
@@ -1137,8 +927,6 @@ def build_insights(df: pd.DataFrame) -> list[dict]:
                 variant="ic-purple",
             )
         )
-
-    # --- Weather impact -----------------------------------------------------
     wea = agg_mean(df, "Weather")
     if len(wea) >= 1:
         worst_w = wea.iloc[-1]
@@ -1151,8 +939,6 @@ def build_insights(df: pd.DataFrame) -> list[dict]:
                 variant="ic-blue",
             )
         )
-
-    # --- Late delivery ------------------------------------------------------
     late_pct = df["Late_Delivery"].mean() * 100
     insights.append(
         dict(
@@ -1163,8 +949,6 @@ def build_insights(df: pd.DataFrame) -> list[dict]:
             variant="ic-pink",
         )
     )
-
-    # --- Age group / rating -------------------------------------------------
     age = agg_mean(df, "Age_Group")
     if len(age) >= 1:
         best_age = age.iloc[0]
@@ -1177,8 +961,6 @@ def build_insights(df: pd.DataFrame) -> list[dict]:
                 variant="ic-cyan",
             )
         )
-
-    # --- Rating correlation -------------------------------------------------
     if df["Agent_Rating"].nunique() > 2:
         corr = df["Agent_Rating"].corr(df["Delivery_Time"])
         direction = "faster" if corr < 0 else "slower"
@@ -1191,8 +973,6 @@ def build_insights(df: pd.DataFrame) -> list[dict]:
                 variant="ic-purple",
             )
         )
-
-    # --- Category -----------------------------------------------------------
     cat = agg_mean(df, "Category")
     if len(cat) >= 1:
         worst_c = cat.iloc[-1]
@@ -1208,12 +988,7 @@ def build_insights(df: pd.DataFrame) -> list[dict]:
 
     return insights
 
-
 def compute_delay_risk(df: pd.DataFrame) -> float:
-    """
-    Predict the probability of a late delivery under the highest-risk
-    operating segment (traffic x weather). Falls back to the overall late rate.
-    """
     if df.empty:
         return 0.0
     base = df["Late_Delivery"].mean() * 100
@@ -1230,11 +1005,8 @@ def compute_delay_risk(df: pd.DataFrame) -> float:
         pass
     return float(base)
 
-
 def build_ai_panel(df: pd.DataFrame) -> list[dict]:
-    """Build the 5 colourful AI Insights Panel cards."""
     cards: list[dict] = []
-
     veh = agg_mean(df, "Vehicle")
     if len(veh):
         best = veh.iloc[0]
@@ -1258,7 +1030,6 @@ def build_ai_panel(df: pd.DataFrame) -> list[dict]:
                      f"average per delivery.",
             )
         )
-
     area = agg_mean(df, "Area")
     if len(area):
         fast = area.iloc[0]
@@ -1269,7 +1040,6 @@ def build_ai_panel(df: pd.DataFrame) -> list[dict]:
                 desc=f"Quickest zone at {fast['Avg_Delivery_Time']:.0f} min average.",
             )
         )
-
     risk = compute_delay_risk(df)
     cards.append(
         dict(
@@ -1279,7 +1049,6 @@ def build_ai_panel(df: pd.DataFrame) -> list[dict]:
                  "traffic + weather segment.",
         )
     )
-
     late_pct = df["Late_Delivery"].mean() * 100
     cards.append(
         dict(
@@ -1290,11 +1059,7 @@ def build_ai_panel(df: pd.DataFrame) -> list[dict]:
         )
     )
     return cards
-
-
 def build_agent_scatter(df: pd.DataFrame) -> go.Figure:
-    """Rating vs Delivery Time scatter (Scattergl) with an OLS trendline.
-    Uses the FULL dataset via WebGL rendering for smooth performance."""
     fig = go.Figure()
     for grp, color in AGE_GROUP_COLORS.items():
         sub = df[df["Age_Group"] == grp]
@@ -1311,7 +1076,6 @@ def build_agent_scatter(df: pd.DataFrame) -> go.Figure:
                 f"<extra>{grp}</extra>",
             )
         )
-    # Manual OLS trendline (numpy) — avoids statsmodels overhead on full data
     x = df["Agent_Rating"].to_numpy(dtype=float)
     y = df["Delivery_Time"].to_numpy(dtype=float)
     if len(x) > 2 and np.ptp(x) > 0:
@@ -1329,27 +1093,16 @@ def build_agent_scatter(df: pd.DataFrame) -> go.Figure:
         )
     return fig
 
-
-# ============================================================================
-#  EXPORT HELPERS
-# ============================================================================
 def df_to_csv_bytes(df: pd.DataFrame) -> bytes:
     return df.to_csv(index=False).encode("utf-8")
-
-
 def build_pdf_report(df: pd.DataFrame, insights: list[dict]) -> bytes:
-    """Build a multi-page PDF report with matplotlib (no extra deps)."""
     import matplotlib
-
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_pdf import PdfPages
-
     plt.rcParams["font.family"] = "DejaVu Sans"
     buf = io.BytesIO()
-
     with PdfPages(buf) as pdf:
-        # ---- Page 1: Cover + KPIs -----------------------------------------
         fig = plt.figure(figsize=(8.27, 11.69))
         fig.patch.set_facecolor("#F5F8FC")
         fig.text(0.5, 0.93, "LogiSight Analytics", ha="center", fontsize=26,
@@ -1388,27 +1141,21 @@ def build_pdf_report(df: pd.DataFrame, insights: list[dict]) -> bytes:
             y -= 0.028
         pdf.savefig(fig)
         plt.close(fig)
-
-        # ---- Page 2: Performance charts -----------------------------------
         fig, axes = plt.subplots(2, 2, figsize=(8.27, 11.69))
         fig.patch.set_facecolor("#F5F8FC")
-
         veh = agg_mean(df, "Vehicle")
         axes[0, 0].barh(veh["Vehicle"], veh["Avg_Delivery_Time"],
                         color=["#38BDF8", "#3B82F6", "#8271B7", "#FF55C5"][:len(veh)])
         axes[0, 0].set_title("Vehicle Performance", fontweight="bold", color="#0F172A")
         axes[0, 0].set_xlabel("Avg Delivery Time (min)")
-
         traf = agg_mean(df, "Traffic")
         axes[0, 1].bar(traf["Traffic"], traf["Avg_Delivery_Time"],
                        color=["#38BDF8", "#3B82F6", "#8271B7", "#FF55C5"][:len(traf)])
         axes[0, 1].set_title("Traffic Impact", fontweight="bold", color="#0F172A")
         axes[0, 1].set_ylabel("Avg Delivery Time (min)")
-
         axes[1, 0].hist(df["Delivery_Time"], bins=30, color="#3B82F6", alpha=0.85)
         axes[1, 0].set_title("Delivery Time Distribution", fontweight="bold", color="#0F172A")
         axes[1, 0].set_xlabel("Delivery Time (min)")
-
         wea = agg_mean(df, "Weather")
         axes[1, 1].barh(wea["Weather"], wea["Avg_Delivery_Time"], color="#8271B7")
         axes[1, 1].set_title("Weather Impact", fontweight="bold", color="#0F172A")
@@ -1421,8 +1168,6 @@ def build_pdf_report(df: pd.DataFrame, insights: list[dict]) -> bytes:
         plt.tight_layout()
         pdf.savefig(fig)
         plt.close(fig)
-
-        # ---- Page 3: Scorecard table --------------------------------------
         fig = plt.figure(figsize=(8.27, 11.69))
         fig.patch.set_facecolor("#F5F8FC")
         fig.text(0.5, 0.95, "Delivery Performance Scorecard", ha="center",
@@ -1461,13 +1206,10 @@ def build_pdf_report(df: pd.DataFrame, insights: list[dict]) -> bytes:
 
 
 def build_snapshot_png(df: pd.DataFrame) -> bytes | None:
-    """Export a composed dashboard snapshot as PNG using matplotlib."""
     try:
         import matplotlib
-
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-
         plt.rcParams["font.family"] = "DejaVu Sans"
         fig = plt.figure(figsize=(14, 8), facecolor="#F5F8FC")
 
@@ -1477,38 +1219,32 @@ def build_snapshot_png(df: pd.DataFrame) -> bytes | None:
                  f"{len(df):,} deliveries · Avg {df['Delivery_Time'].mean():.1f} min · "
                  f"Late {df['Late_Delivery'].mean()*100:.1f}%",
                  ha="center", fontsize=11, color="#64748B")
-
         ax1 = fig.add_axes([0.06, 0.55, 0.40, 0.30])
         veh = agg_mean(df, "Vehicle")
         ax1.barh(veh["Vehicle"], veh["Avg_Delivery_Time"],
                  color=["#38BDF8", "#3B82F6", "#8271B7", "#FF55C5"][:len(veh)])
         ax1.set_title("Vehicle Performance", fontweight="bold", color="#0F172A")
         ax1.set_xlabel("Avg Delivery Time (min)")
-
         ax2 = fig.add_axes([0.56, 0.55, 0.40, 0.30])
         traf = agg_mean(df, "Traffic")
         ax2.bar(traf["Traffic"], traf["Avg_Delivery_Time"],
                 color=["#38BDF8", "#3B82F6", "#8271B7", "#FF55C5"][:len(traf)])
         ax2.set_title("Traffic Impact", fontweight="bold", color="#0F172A")
         ax2.set_ylabel("Avg Delivery Time (min)")
-
         ax3 = fig.add_axes([0.06, 0.09, 0.40, 0.30])
         ax3.hist(df["Delivery_Time"], bins=35, color="#3B82F6", alpha=0.85)
         ax3.axvline(df["Delivery_Time"].mean(), color="#FF55C5", linestyle="--")
         ax3.set_title("Delivery Time Distribution", fontweight="bold", color="#0F172A")
         ax3.set_xlabel("Delivery Time (min)")
-
         ax4 = fig.add_axes([0.56, 0.09, 0.40, 0.30])
         wea = agg_mean(df, "Weather")
         ax4.barh(wea["Weather"], wea["Avg_Delivery_Time"], color="#8271B7")
         ax4.set_title("Weather Impact", fontweight="bold", color="#0F172A")
         ax4.set_xlabel("Avg Delivery Time (min)")
-
         for ax in [ax1, ax2, ax3, ax4]:
             ax.set_facecolor("white")
             for spine in ["top", "right"]:
                 ax.spines[spine].set_visible(False)
-
         buf = io.BytesIO()
         fig.savefig(buf, format="png", dpi=140, facecolor="#F5F8FC")
         plt.close(fig)
@@ -1516,20 +1252,11 @@ def build_snapshot_png(df: pd.DataFrame) -> bytes | None:
         return buf.read()
     except Exception:
         return None
-
-
-# ============================================================================
-#  MAIN APPLICATION
-# ============================================================================
 def main() -> None:
     raw, source_path = resolve_dataset()
 
     with st.spinner("🚚 Loading LogiSight Analytics engine…"):
         df_all = clean_data(raw)
-
-    # ------------------------------------------------------------------
-    #  SIDEBAR FILTERS  (glassmorphism rounded containers)
-    # ------------------------------------------------------------------
     with st.sidebar:
         st.markdown(
             """
@@ -1588,13 +1315,6 @@ def main() -> None:
                 "Date Range", value=(min_d, max_d), min_value=min_d, max_value=max_d
             )
 
-        st.markdown("---")
-        st.caption(f"📁 Source: `{source_path}`")
-        st.caption(f"🗂️ Records loaded: **{len(df_all):,}**")
-
-    # ------------------------------------------------------------------
-    #  APPLY FILTERS
-    # ------------------------------------------------------------------
     if isinstance(date_range, (tuple, list)) and len(date_range) == 2:
         start_d, end_d = date_range
     else:
@@ -1611,13 +1331,8 @@ def main() -> None:
         & (df_all["Order_Date"].dt.date <= end_d)
     )
     df = df_all[mask].copy()
-
-    # ------------------------------------------------------------------
-    #  NAVBAR + PAGE HEADER
-    # ------------------------------------------------------------------
     date_label = f"{start_d:%d %b %Y} – {end_d:%d %b %Y}"
     render_navbar(date_label)
-
     st.markdown(
         '<div class="ls-page-title">Last Mile Delivery Intelligence</div>'
         '<div class="ls-page-sub">Real-time operational analytics across fleet, '
@@ -1628,26 +1343,16 @@ def main() -> None:
     if df.empty:
         st.warning("⚠️ No records match the current filters. Please widen your selection.")
         st.stop()
-
-    # ------------------------------------------------------------------
-    #  KPI COMPUTATION
-    # ------------------------------------------------------------------
     total_deliveries = len(df)
     avg_time = df["Delivery_Time"].mean()
     late_pct = df["Late_Delivery"].mean() * 100
     avg_rating = df["Agent_Rating"].mean()
-
     veh_rank = agg_mean(df, "Vehicle")
     fastest_vehicle = veh_rank.iloc[0]["Vehicle"].title() if len(veh_rank) else "—"
     fastest_veh_time = veh_rank.iloc[0]["Avg_Delivery_Time"] if len(veh_rank) else 0
-
     area_rank = agg_mean(df, "Area")
     best_area = area_rank.iloc[0]["Area"] if len(area_rank) else "—"
     best_area_time = area_rank.iloc[0]["Avg_Delivery_Time"] if len(area_rank) else 0
-
-    # ==================================================================
-    #  ROW 1 — PREMIUM KPI CARDS
-    # ==================================================================
     k1, k2, k3, k4, k5, k6 = st.columns(6, gap="medium")
     with k1:
         st.markdown(kpi_card("📦", f"{total_deliveries:,}", "Total Deliveries",
@@ -1676,19 +1381,11 @@ def main() -> None:
 
     st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
 
-    # ==================================================================
-    #  TABS — Dashboard / Insights / Performance / Operations
-    # ==================================================================
     tab_dash, tab_insights, tab_perf, tab_ops = st.tabs(
         ["📊 Dashboard", "💡 Insights", "📈 Performance", "⚙️ Operations"]
     )
 
-    # ==================================================================
-    #  TAB 1 — DASHBOARD  (ROW 2 → ROW 6)
-    # ==================================================================
     with tab_dash:
-
-        # ---------------- ROW 2 : Delay Analyzer | Vehicle Comparison ----
         r2c1, r2c2 = st.columns(2, gap="large")
         with r2c1:
             with chart_card("delay", "🌦️", "Delay Analyzer",
@@ -1754,8 +1451,6 @@ def main() -> None:
                 insight_box("Fleet Insights", bullets)
 
         st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
-
-        # ---------------- ROW 3 : Agent Performance | Area Heatmap -------
         r3c1, r3c2 = st.columns(2, gap="large")
         with r3c1:
             with chart_card("agent", "👤", "Agent Performance",
@@ -1797,10 +1492,7 @@ def main() -> None:
                         f"<b>{worst_combo[1]}</b> at <b>{flat.max():.0f} min</b>.",
                         "Darker cells mark bottlenecks needing intervention.",
                     ])
-
         st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
-
-        # ---------------- ROW 4 : Category Visualizer | Monthly Trends ---
         r4c1, r4c2 = st.columns(2, gap="large")
         with r4c1:
             with chart_card("category", "📦", "Category Visualizer",
@@ -1850,8 +1542,6 @@ def main() -> None:
                     ])
 
         st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
-
-        # ---------------- ROW 5 : Late Delivery | Traffic Impact ---------
         r5c1, r5c2 = st.columns(2, gap="large")
         with r5c1:
             with chart_card("late", "⏰", "Late Delivery Analysis",
