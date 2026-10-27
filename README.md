@@ -1,7 +1,5 @@
 # Harini_Priya_Karthikeyan_1000410_Last_Mile_Delivery_FA2
 
-# Harini_Priya_Karthikeyan_1000410_Last_Mile_Delivery_FA2
-
 # LogiSight Analytics
 ### Last Mile Delivery Intelligence Dashboard
 
