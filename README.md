@@ -128,12 +128,6 @@ Explore the deployed application:
 
 **[LogiSight Analytics – Last Mile Delivery Intelligence](https://harini-priya-karthikeyan-1000410-last-mile-delivery-fa2.streamlit.app/)**
 
-## 👩‍💻 Project Credits
-
-**Developed by:** Harini Priya Karthikeyan  
-**Grade:** IBCP-Year 2 
-**Subject:** Artificial Intelligence  
-**Project:** FA-2 – Last Mile Delivery Analytics
 
 ---
 
